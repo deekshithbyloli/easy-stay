@@ -1,0 +1,13 @@
+{
+  "/api/login/route": "app/api/login/route.js",
+  "/api/property/stays/route": "app/api/property/stays/route.js",
+  "/api/property/route": "app/api/property/route.js",
+  "/api/register/route": "app/api/register/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/(dashboard)/host/page": "app/(dashboard)/host/page.js",
+  "/(dashboard)/host/property/page": "app/(dashboard)/host/property/page.js",
+  "/(pages)/host-login/page": "app/(pages)/host-login/page.js",
+  "/(pages)/login/page": "app/(pages)/login/page.js",
+  "/page": "app/page.js"
+}
