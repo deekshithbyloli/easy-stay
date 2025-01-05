@@ -88,13 +88,13 @@ const HomestayDisplay = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <p className="text-lg text-red-500">{error}</p>
-      </div>
-    );
-  }
+  // if (error) {
+  //   return (
+  //     <div className="flex justify-center items-center h-screen">
+  //       <p className="text-lg text-red-500">{error}</p>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="container mx-auto p-6">

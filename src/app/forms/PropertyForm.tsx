@@ -25,16 +25,21 @@ const formSchema = z.object({
   description: z.string().optional(),
   photos: z.array(z.string().url()).optional(),
   location: z.object({
-    lat: z.string().min(-90).max(90, { message: 'Latitude must be between -90 and 90' }),
-    lng: z.string().min(-180).max(180, { message: 'Longitude must be between -180 and 180' }),
+    lat: z.number().min(-90).max(90, { message: 'Latitude must be between -90 and 90' }),
+    lng: z.number().min(-180).max(180, { message: 'Longitude must be between -180 and 180' }),
     address: z.string().min(1, { message: 'Address is required' }),
   }),
-  pricePerNight: z.string().min(1, { message: 'Price must be greater than zero' }),
+  pricePerNight: z.number().min(0, { message: 'Price must be greater than zero' }),
   amenities: z.array(z.string()).optional(),
-  availability: z.array(z.string()).min(1, { message: 'Availability is required' }),
+  availability: z.array(z.object({ date: z.string(), isAvailable: z.boolean() })).min(1, {
+    message: 'Availability is required',
+  }),
 });
 
+
 const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) => {
+
+  console.log('hpme stay', homestayId)
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -51,7 +56,6 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
       availability: [],
     },
   });
-
   useEffect(() => {
     if (homestayId) {
       async function fetchHomestayData() {
@@ -59,56 +63,72 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
         try {
           const response = await fetch(`/api/property/stays?id=${homestayId}`);
           const data = await response.json();
-          form.reset(data); 
+          console.log('Fetched homestay data:', data);  // Log the whole data object
+          console.log('Availability field in data:', data.availability); // Log just the availability field
+          
+          form.reset(data);
         } catch (err) {
           setError('Error loading homestay data');
         } finally {
           setIsLoading(false);
         }
       }
-
+  
       fetchHomestayData();
     }
   }, [homestayId, form]);
+  
+  
+  
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     setError(null);
-
+  
     const hostId = sessionStorage.getItem('hostId');
     if (!hostId) {
       setError('Host ID not found in session storage');
       setIsLoading(false);
       return;
     }
-
-    const updatedValues = {
-      id: homestayId,
-      ...values,
-      location: {
-        lat: parseFloat(values.location.lat),
-        lng: parseFloat(values.location.lng),
-        address: values.location.address,
-      },
-      pricePerNight: parseFloat(values.pricePerNight),
-    };
-
+  
     try {
+      // Transform data to match the expected payload format
+      const formattedPayload = {
+        id: homestayId || undefined,
+        hostId,
+        name: values.name,
+        description: values.description || '',
+        photos: values.photos || [],
+        location: {
+          lat: parseFloat(values.location.lat),
+          lng: parseFloat(values.location.lng),
+          address: values.location.address,
+        },
+        pricePerNight: parseFloat(values.pricePerNight),
+        amenities: values.amenities || [],
+        availability: values.availability.map(date => ({
+          date,
+          isAvailable: true, // Defaulting to true for now
+        })),
+      };
+  
       const method = homestayId ? 'PUT' : 'POST';
-      const url = homestayId ? `/api/property` : '/api/property';
+      const url = `/api/property`;
+  
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedValues),
+        body: JSON.stringify(formattedPayload),
       });
-
+  
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({
           error: 'An unexpected error occurred',
         }));
         throw new Error(errorData.error || 'Failed to submit homestay');
       }
-
+  
       const data = await response.json();
       console.log('Homestay saved:', data);
       router.push('/homestays');
@@ -119,6 +139,7 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
       setIsLoading(false);
     }
   }
+  
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
@@ -262,42 +283,63 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
 
             {/* Availability */}
             <FormField
-              control={form.control}
-              name="availability"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-gray-700">Availability</FormLabel>
-                  <FormControl>
-                    <div className="space-y-2">
-                      {field.value.map((date, index) => (
-                        <div key={index} className="flex items-center space-x-2">
-                          <span>{date}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updatedDates = field.value.filter(d => d !== date);
-                              form.setValue('availability', updatedDates);
-                            }}
-                            className="text-red-500 hover:underline"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                      <Input
-                        type="date"
-                        onChange={(e) => {
-                          const updatedDates = [...field.value, e.target.value];
-                          form.setValue('availability', updatedDates);
-                        }}
-                        className="border-gray-300 rounded-md p-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300"
-                      />
-                    </div>
-                  </FormControl>
-                  <FormMessage className="text-xs font-normal text-red-500" />
-                </FormItem>
-              )}
-            />
+control={form.control}
+name="availability"
+render={({ field }) => (
+  <FormItem>
+    <FormLabel className="text-gray-700">Availability</FormLabel>
+    <FormControl>
+      <div className="space-y-2">
+        {/* Check if field.value is an array */}
+        {Array.isArray(field.value) &&
+field.value.map((availability, index) => (
+  <div key={index} className="flex items-center space-x-2">
+    {/* Check if availability.date is a string or object */}
+    <span>
+      {availability?.date && typeof availability.date === 'string'
+        ? availability.date
+        : availability?.date instanceof Date
+        ? availability.date.toISOString().split('T')[0] // Convert Date to YYYY-MM-DD
+        : 'No date available'}
+    </span>
+    <button
+      type="button"
+      onClick={() => {
+        const updatedAvailability = field.value.filter(
+          (_, i) => i !== index
+        );
+        form.setValue('availability', updatedAvailability);
+      }}
+      className="text-red-500 hover:underline"
+    >
+      Remove
+    </button>
+  </div>
+))}
+
+        <div className="flex items-center space-x-2">
+          <Input
+            type="date"
+            onChange={(e) => {
+              const updatedAvailability = [
+                ...field.value,
+                { date: e.target.value, isAvailable: true }, // Add default `isAvailable`
+              ];
+              form.setValue('availability', updatedAvailability);
+            }}
+            className="border-gray-300 rounded-md p-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300"
+          />
+        </div>
+      </div>
+    </FormControl>
+    <FormMessage className="text-xs font-normal text-red-500" />
+  </FormItem>
+)}
+/>
+
+
+
+
 
             {/* Amenities */}
             <FormField
@@ -356,7 +398,7 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
               </Button>
             </div>
           
-         </div> </form>
+        </div> </form>
         </Form>
       </div>
     </div>
@@ -364,3 +406,11 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
 };
 
 export default CreateHomestayForm;
+
+
+      
+
+
+      
+
+
