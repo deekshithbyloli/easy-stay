@@ -1,0 +1,1 @@
+ALTER TABLE "attachments_table" DROP COLUMN "public_url";
