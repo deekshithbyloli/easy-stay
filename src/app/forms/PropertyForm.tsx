@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { uploadImages } from '../utils/uploadImages';
 
 interface CreateHomestayFormProps {
   homestayId?: number;
@@ -29,13 +30,13 @@ interface CreateHomestayFormProps {
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Name is required' }),
   description: z.string().optional(),
-  photos: z.array(z.string().url()).optional(),
+  photos: z.array(z.instanceof(File)).optional(),
   location: z.object({
-    lat: z.string().min(-90).max(90, { message: 'Latitude must be between -90 and 90' }),
-    lng: z.string().min(-180).max(180, { message: 'Longitude must be between -180 and 180' }),
+    lat: z.string().min(1, { message: 'Latitude is required' }),
+    lng: z.string().min(1, { message: 'Longitude is required' }),
     address: z.string().min(1, { message: 'Address is required' }),
   }),
-  pricePerNight: z.string().min(0, { message: 'Price must be greater than zero' }),
+  pricePerNight: z.string().min(1, { message: 'Price must be greater than zero' }),
   amenities: z.array(z.string()).optional(),
   availability: z.array(z.object({ date: z.string(), isAvailable: z.boolean() })).min(1, {
     message: 'Availability is required',
@@ -45,6 +46,7 @@ const formSchema = z.object({
 const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false); // Manage upload state
   const router = useRouter();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -53,12 +55,13 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
       name: '',
       description: '',
       photos: [],
-      location: { lat: '', lng: '', address: '' }, // Changed to numbers
-      pricePerNight: '', // Changed to number
+      location: { lat: '', lng: '', address: '' },
+      pricePerNight: '',
       amenities: [],
       availability: [],
     },
   });
+
   useEffect(() => {
     if (homestayId) {
       async function fetchHomestayData() {
@@ -67,31 +70,41 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
           const response = await fetch(`/api/property/stays?id=${homestayId}`);
           if (!response.ok) {
             const errorData = await response.json();
-            console.error("API error:", errorData); // Log API error response
             throw new Error(errorData.error || 'Failed to fetch homestay');
           }
-          
           const data = await response.json();
-          console.log("Fetched homestay data:", data); // Log fetched data
           
-          // Check if data structure matches what the form expects
+          // Pre-fill the form
           form.reset({
-            ...data,
+            name: data.homestay.name,
+            description: data.homestay.description,
+            photos: [], // New photos array remains empty
             location: {
-              lat: data.location.lat.toString(),
-              lng: data.location.lng.toString(),
-              address: data.location.address,
+              lat: data.homestay.location.lat.toString(),
+              lng: data.homestay.location.lng.toString(),
+              address: data.homestay.location.address,
             },
-            pricePerNight: data.pricePerNight.toString(),
+            pricePerNight: data.homestay.pricePerNight.toString(),
+            amenities: data.homestay.amenities || [],
+            availability: data.homestay.availability.map((item: any) => ({
+              date: item.date,
+              isAvailable: item.isAvailable,
+            })),
           });
+  
+          // // Store existing photo URLs for display
+          // setPhotos(
+          //   data.homestay.photos.map((photo: any) => ({
+          //     id: photo.id,
+          //     url: `/uploads/${photo.fileName}`,
+          //   }))
+          // );
         } catch (err) {
-          console.error("Error fetching homestay data:", err);
           setError('Error loading homestay data');
         } finally {
           setIsLoading(false);
         }
       }
-  
       fetchHomestayData();
     }
   }, [homestayId, form]);
@@ -101,62 +114,56 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
     setIsLoading(true);
     setError(null);
   
-    const hostId = sessionStorage.getItem('hostId');
-    if (!hostId) {
-      setError('Host ID not found in session storage');
-      setIsLoading(false);
-      return;
+    // Step 1: Create the HomestayDTO
+    const homestayDTO = {
+      id:homestayId,
+      hostId: sessionStorage.getItem('hostId') || '',
+      name: values.name,
+      description: values.description || '',
+      location: values.location,
+      pricePerNight: values.pricePerNight,
+      amenities: values.amenities,
+      availability: values.availability,
+    };
+  
+    // Step 2: Create FormData and append HomestayDTO as JSON
+    const formData = new FormData();
+    formData.append('homestay', JSON.stringify(homestayDTO));
+  
+    // Step 3: Upload photos as files (FileUploadDTO)
+    if (values.photos && values.photos.length > 0) {
+      values.photos.forEach((file) => {
+        formData.append('files[]', file); // Append each file using 'files[]' key
+      });
     }
   
+    // Step 4: Make the API request to submit the form data
     try {
-      // Cast values to numbers before submitting
-      const formattedPayload = {
-        id: homestayId || undefined,
-        hostId,
-        name: values.name,
-        description: values.description || '',
-        photos: values.photos || [],
-        location: {
-          lat: parseFloat(values.location.lat),
-          lng: parseFloat(values.location.lng),
-          address: values.location.address,
-        },
-        pricePerNight: parseFloat(values.pricePerNight),
-        amenities: values.amenities || [], // Ensure this is an array of strings
-        availability: values.availability.map((item) => ({
-          date: item.date,
-          isAvailable: item.isAvailable,
-        })),
-      };
-      
-      
-      
-  
       const method = homestayId ? 'PUT' : 'POST';
-      const url = `/api/property`;
-  
-      const response = await fetch(url, {
+      const response = await fetch(`/api/property`, {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formattedPayload),
+        body: formData,
       });
   
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({
-          error: 'An unexpected error occurred',
-        }));
+        const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to submit homestay');
       }
   
-      const data = await response.json();
-      router.push('/homestays');
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred');
+      const responseData = await response.json();
+      console.log('Homestay submitted successfully:', responseData);
+     // Navigate to another page on success
+    } catch (err) {
+      setError('Failed to create or update homestay');
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
   }
   
+  
+
+    
   
   
 
@@ -196,6 +203,55 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
                   </FormItem>
                 )}
               />
+              {/* Photos */}
+              <FormField
+  control={form.control}
+  name="photos"
+  render={({ field }) => (
+    <FormItem>
+      <FormLabel>Photos</FormLabel>
+      <FormControl>
+        <div className="space-y-2">
+          <Input
+            type="file"
+            multiple
+            accept="image/*"
+            onChange={(e) => {
+              const files = e.target.files ? Array.from(e.target.files) : [];
+              form.setValue('photos', files);
+            }}
+          />
+          {field.value?.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 mt-2">
+              {field.value.map((file: File, index: number) => (
+                <div key={index} className="relative">
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt={`Preview ${index}`}
+                    className="w-full h-24 object-cover rounded-md shadow"
+                  />
+                  <button
+                    type="button"
+                    className="absolute top-0 right-0 bg-red-600 text-white rounded-full p-1 text-sm"
+                    onClick={() => {
+                      const updatedFiles = field.value.filter((_, i) => i !== index);
+                      form.setValue('photos', updatedFiles);
+                    }}
+                  >
+                    &times;
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </FormControl>
+      <FormMessage />
+    </FormItem>
+  )}
+/>
+
+
 
               {/* Description */}
               <FormField
