@@ -1,0 +1,1 @@
+ALTER TABLE "homestays_table" ADD COLUMN "photos" jsonb DEFAULT '[]'::jsonb NOT NULL;
