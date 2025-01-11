@@ -51,7 +51,6 @@ export function HostRegisterForm() {
     setIsLoading(true);
     setError(null);
 
-    // Add role as "host" directly to the payload
     const payload = {
       ...values,
       role: 'host', // Set the role to 'host'
@@ -83,98 +82,110 @@ export function HostRegisterForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="w-full max-w-sm bg-white rounded-xl shadow-lg p-6 space-y-6 transform transition-all duration-500 ease-in-out hover:scale-105">
-        {error && (
-          <Alert variant="destructive" className="mb-4 animate-fade-in">
-            <AlertTitle>Registration Failed</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+    <div className="flex min-h-screen bg-gradient-to-r from-pink-400 via-purple-500 to-indigo-600">
+      {/* Left Side */}
+      <div className="hidden md:flex flex-1 items-center justify-center relative overflow-hidden">
+        <div className="absolute z-10 text-center px-4">
+          <h1 className="text-4xl font-bold text-white drop-shadow-lg">Host Registration</h1>
+          <p className="mt-2 text-lg text-gray-200">
+            Become a host and manage your bookings.
+          </p>
+        </div>
+      </div>
 
-        <h2 className="text-2xl font-semibold text-center text-gray-800">Register</h2>
+      {/* Right Side */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white rounded-lg shadow-xl p-8 space-y-6">
+          {error && (
+            <Alert variant="destructive" className="animate-fade-in">
+              <AlertTitle>Registration Failed</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-gray-700">Full Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="text"
-                      placeholder="Full Name"
-                      {...field}
-                      className="border-gray-300 rounded-md p-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300"
-                    />
-                  </FormControl>
-                  <FormMessage className="text-xs font-normal text-red-500" />
-                </FormItem>
-              )}
-            />
+          <h2 className="text-2xl font-bold text-center text-gray-800">Host Registration</h2>
+          <p className="text-sm text-gray-500 text-center">Create your host account</p>
 
-            <FormField
-              control={form.control}
-              name="username"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-gray-700">Username</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="text"
-                      placeholder="Username"
-                      {...field}
-                      className="border-gray-300 rounded-md p-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300"
-                    />
-                  </FormControl>
-                  <FormMessage className="text-xs font-normal text-red-500" />
-                </FormItem>
-              )}
-            />
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-600">Full Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="text"
+                        placeholder="Full Name"
+                        {...field}
+                        className="border-gray-300 rounded-lg p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-xs text-red-600" />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-gray-700">Email</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="Email"
-                      {...field}
-                      className="border-gray-300 rounded-md p-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300"
-                    />
-                  </FormControl>
-                  <FormMessage className="text-xs font-normal text-red-500" />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-600">Username</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="text"
+                        placeholder="Username"
+                        {...field}
+                        className="border-gray-300 rounded-lg p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-xs text-red-600" />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-gray-700">Password</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="Password"
-                      {...field}
-                      className="border-gray-300 rounded-md p-2 w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300"
-                    />
-                  </FormControl>
-                  <FormMessage className="text-xs font-normal text-red-500" />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-600">Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="Email"
+                        {...field}
+                        className="border-gray-300 rounded-lg p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-xs text-red-600" />
+                  </FormItem>
+                )}
+              />
 
-            <div className="mt-4">
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-600">Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="Password"
+                        {...field}
+                        className="border-gray-300 rounded-lg p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-xs text-red-600" />
+                  </FormItem>
+                )}
+              />
+
               <Button
-                className="w-full text-white hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 rounded-md shadow-md py-2 px-4 transition-all duration-300"
+                className="w-full bg-indigo-500 text-white hover:bg-indigo-600 focus:ring-4 focus:ring-indigo-300 rounded-lg py-3 transition-all"
                 type="submit"
                 disabled={isLoading}
               >
@@ -187,9 +198,9 @@ export function HostRegisterForm() {
                   'Register'
                 )}
               </Button>
-            </div>
-          </form>
-        </Form>
+            </form>
+          </Form>
+        </div>
       </div>
     </div>
   );
