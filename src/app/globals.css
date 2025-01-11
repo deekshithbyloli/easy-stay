@@ -5,6 +5,12 @@
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
+@keyframes slide {
+  0% { transform: translateX(0%); }
+  33% { transform: translateX(-100%); }
+  66% { transform: translateX(-200%); }
+  100% { transform: translateX(0%); }
+}
 
 @layer base {
   :root {

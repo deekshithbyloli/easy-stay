@@ -36,6 +36,7 @@ const formSchema = z.object({
     lng: z.string().min(1, { message: 'Longitude is required' }),
     address: z.string().min(1, { message: 'Address is required' }),
   }),
+
   pricePerNight: z.string().min(1, { message: 'Price must be greater than zero' }),
   amenities: z.array(z.string()).optional(),
   availability: z.array(z.object({ date: z.string(), isAvailable: z.boolean() })).min(1, {
@@ -48,6 +49,7 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false); // Manage upload state
   const router = useRouter();
+const [deletedAttachmentIds, setDeletedAttachmentIds] = useState<number[]>([]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -73,12 +75,32 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
             throw new Error(errorData.error || 'Failed to fetch homestay');
           }
           const data = await response.json();
-          
-          // Pre-fill the form
+  
+          // Use photoIds instead of photos to fetch attachments
+          const attachmentPreviews = await Promise.all(
+            data.photoIds.map(async (id: number) => {
+              try {
+                const response = await fetch(`/api/attachments?attachmentId=${id}`);
+                if (!response.ok) {
+                  throw new Error(`Failed to fetch attachment with ID ${id}`);
+                }
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                return { id, url };
+              } catch (error) {
+                console.error(`Error fetching attachment with ID ${id}:`, error);
+                return null;
+              }
+            })
+          );
+  
+          // Filter out failed attachments
+          const validPreviews = attachmentPreviews.filter((preview) => preview !== null);
+  
           form.reset({
             name: data.homestay.name,
             description: data.homestay.description,
-            photos: [], // New photos array remains empty
+            photos: [], // Reset file input for new uploads
             location: {
               lat: data.homestay.location.lat.toString(),
               lng: data.homestay.location.lng.toString(),
@@ -92,14 +114,10 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
             })),
           });
   
-          // // Store existing photo URLs for display
-          // setPhotos(
-          //   data.homestay.photos.map((photo: any) => ({
-          //     id: photo.id,
-          //     url: `/uploads/${photo.fileName}`,
-          //   }))
-          // );
+          // Store pre-fetched image previews
+          setPhotos(validPreviews);
         } catch (err) {
+          console.error(err);
           setError('Error loading homestay data');
         } finally {
           setIsLoading(false);
@@ -108,6 +126,21 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
       fetchHomestayData();
     }
   }, [homestayId, form]);
+  
+  
+  const [photos, setPhotos] = useState<{ id: number; url: string }[]>([]);
+  
+  // Photo Preview Management
+  const handleRemovePhoto = (id: number | null, fileIndex: number | null) => {
+    if (id !== null) {
+      setPhotos((prev) => prev.filter((photo) => photo.id !== id));
+      setDeletedAttachmentIds((prev) => [...prev, id]); // Track the removed attachment ID
+    } else if (fileIndex !== null) {
+      form.setValue('photos', form.getValues('photos').filter((_, index) => index !== fileIndex));
+    }
+  };
+  
+  
   
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -124,6 +157,7 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
       pricePerNight: values.pricePerNight,
       amenities: values.amenities,
       availability: values.availability,
+      deletedAttachmentIds, 
     };
   
     // Step 2: Create FormData and append HomestayDTO as JSON
@@ -218,38 +252,52 @@ const CreateHomestayForm: React.FC<CreateHomestayFormProps> = ({ homestayId }) =
             accept="image/*"
             onChange={(e) => {
               const files = e.target.files ? Array.from(e.target.files) : [];
-              form.setValue('photos', files);
+              form.setValue('photos', [...field.value, ...files]);
             }}
           />
-          {field.value?.length > 0 && (
-            <div className="grid grid-cols-3 gap-2 mt-2">
-              {field.value.map((file: File, index: number) => (
-                <div key={index} className="relative">
-                  <img
-                    src={URL.createObjectURL(file)}
-                    alt={`Preview ${index}`}
-                    className="w-full h-24 object-cover rounded-md shadow"
-                  />
-                  <button
-                    type="button"
-                    className="absolute top-0 right-0 bg-red-600 text-white rounded-full p-1 text-sm"
-                    onClick={() => {
-                      const updatedFiles = field.value.filter((_, i) => i !== index);
-                      form.setValue('photos', updatedFiles);
-                    }}
-                  >
-                    &times;
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            {/* Render Pre-Fetched Images */}
+            {photos.map((photo) => (
+              <div key={photo.id} className="relative">
+                <img
+                  src={photo.url}
+                  alt={`Attachment ${photo.id}`}
+                  className="w-full h-24 object-cover rounded-md shadow"
+                />
+                <button
+                  type="button"
+                  className="absolute top-0 right-0 bg-red-600 text-white rounded-full p-1 text-sm"
+                  onClick={() => handleRemovePhoto(photo.id, null)}
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+            {/* Render Newly Uploaded Files */}
+            {field.value.map((file: File, index: number) => (
+              <div key={index} className="relative">
+                <img
+                  src={URL.createObjectURL(file)}
+                  alt={`Preview ${index}`}
+                  className="w-full h-24 object-cover rounded-md shadow"
+                />
+                <button
+                  type="button"
+                  className="absolute top-0 right-0 bg-red-600 text-white rounded-full p-1 text-sm"
+                  onClick={() => handleRemovePhoto(null, index)}
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </FormControl>
       <FormMessage />
     </FormItem>
   )}
 />
+
 
 
 

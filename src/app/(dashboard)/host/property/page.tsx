@@ -2,8 +2,9 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import CreateHomestayForm from '@/app/forms/PropertyForm';
 import { Modal } from '@/components/modals/modals';
+import CreateHomestayForm from '@/app/forms/PropertyForm';
+import { FaMapMarkerAlt, FaDollarSign, FaEdit, FaTrash } from 'react-icons/fa';
 
 const HomestayDisplay = () => {
   const [homestays, setHomestays] = useState<any[]>([]);
@@ -25,10 +26,8 @@ const HomestayDisplay = () => {
       try {
         setLoading(true);
         setError(null);
-
         const response = await fetch(`/api/property?hostId=${storedHostId}`);
         const data = await response.json();
-
         if (response.ok) {
           setHomestays(data);
         } else {
@@ -44,36 +43,17 @@ const HomestayDisplay = () => {
     fetchHomestays();
   }, []);
 
-  const handleDeleteHomestay = async (homestayId: number) => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/property?id=${homestayId}`, { method: 'DELETE' });
-      const result = await response.json();
-
-      if (response.ok) {
-        setHomestays(homestays.filter((homestay) => homestay.id !== homestayId));
-        console.log('Homestay deleted:', result.message);
-      } else {
-        throw new Error(result.error || 'Failed to delete homestay');
-      }
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <p className="text-lg text-gray-500">Loading...</p>
+        <div className="spinner border-t-4 border-indigo-500 w-12 h-12 rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto p-6">
-      <h1 className="text-4xl font-semibold text-center mb-12 text-gray-800">Homestay Details</h1>
+      <h1 className="text-4xl font-semibold text-center mb-12 text-gray-800">Homestay Listings</h1>
       <div className="flex justify-end mb-6">
         <Button
           onClick={() => setIsCreateModalOpen(true)}
@@ -83,43 +63,52 @@ const HomestayDisplay = () => {
         </Button>
       </div>
 
-      {homestays.length === 0 ? (
-        <p className="text-center text-xl text-gray-600">No homestays found for this host.</p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {homestays.map((homestay) => (
-            <Card key={homestay.id} className="w-full shadow-xl rounded-lg overflow-hidden bg-white">
-              <CardHeader className="bg-gray-800 p-4 text-white">
-                <CardTitle>{homestay.name}</CardTitle>
-                <CardDescription>{homestay.location.address}</CardDescription>
-              </CardHeader>
-              <CardContent className="p-4">
-                <p>{homestay.description}</p>
-                <p>Price per Night: ${homestay.pricePerNight}</p>
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setEditingHomestay(homestay);
-                    setIsEditModalOpen(true);
-                  }}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => handleDeleteHomestay(homestay.id)}
-                >
-                  Delete
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {homestays.map((homestay) => (
+          <Card key={homestay.id} className="w-full shadow-xl rounded-lg overflow-hidden bg-white">
+            <div className="relative h-48 overflow-hidden">
+              <div className="absolute inset-0 flex transition-transform duration-700" style={{ animation: 'slide 10s infinite' }}>
+                {homestay.attachmentIds.map((attachmentId: string, index: number) => (
+                  <img
+                    key={index}
+                    src={`/api/attachments?attachmentId=${attachmentId}`}
+                    alt={homestay.name}
+                    className="w-full h-full object-cover"
+                  />
+                ))}
+              </div>
+            </div>
+            <CardHeader className="bg-gray-800 p-4 text-white">
+              <CardTitle className="text-lg">{homestay.name}</CardTitle>
+              <CardDescription className="flex items-center text-sm mt-1">
+                <FaMapMarkerAlt className="mr-2" /> {homestay.location.address}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4">
+              <p className="text-sm text-gray-700">{homestay.description}</p>
+              <p className="mt-2 flex items-center text-gray-900">
+                <FaDollarSign className="mr-1" /> {homestay.pricePerNight} per Night
+              </p>
+            </CardContent>
+            <CardFooter className="flex justify-between p-4">
+              <Button
+                variant="outline"
+                className="flex items-center"
+                onClick={() => {
+                  setEditingHomestay(homestay);
+                  setIsEditModalOpen(true);
+                }}
+              >
+                <FaEdit className="mr-1" /> Edit
+              </Button>
+              <Button variant="destructive" className="flex items-center">
+                <FaTrash className="mr-1" /> Delete
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
 
-      {/* Modal for creating a new property */}
       <Modal
         title="Create New Property"
         description="Fill out the details to create a new property."
@@ -130,7 +119,6 @@ const HomestayDisplay = () => {
         <CreateHomestayForm />
       </Modal>
 
-      {/* Modal for editing a property */}
       <Modal
         title="Edit Property"
         description="Modify the details of the property."
