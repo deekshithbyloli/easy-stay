@@ -64,6 +64,13 @@
       "when": 1736449354956,
       "tag": "0008_tidy_giant_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1736618942547,
+      "tag": "0009_bright_the_professor",
+      "breakpoints": true
     }
   ]
 }

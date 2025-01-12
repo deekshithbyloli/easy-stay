@@ -18,6 +18,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Required fields are missing' }, { status: 400 });
     }
 
+    // Validate the location format
+    if (!/^POINT\(-?\d+(\.\d+)? -?\d+(\.\d+)?\)$/.test(location)) {
+      return NextResponse.json({ error: 'Invalid location format. Use "POINT(longitude latitude)".' }, { status: 400 });
+    }
+
     // Verify if the host exists
     const host = await db.select().from(hostsTable).where(eq(hostsTable.id, hostId)).limit(1).execute();
     if (!host || host.length === 0) {
@@ -28,14 +33,9 @@ export async function POST(req: NextRequest) {
     const uploadedFiles = files.length > 0 ? await uploadImages(files) : [];
     const attachmentIds = await Promise.all(
       uploadedFiles.map(async (file, index) => {
-        console.log(`Processing file ${index + 1}/${uploadedFiles.length}:`, file);
-        if (!file || !file.fileName || !file.fileType) {
-          console.warn(`Skipping invalid file at index ${index}:`, file);
-          return null;
-        }
+        if (!file || !file.fileName || !file.fileType) return null;
 
         try {
-          // Insert the file into the attachments table and return its ID
           const result = await db
             .insert(attachmentsTable)
             .values({
@@ -43,10 +43,8 @@ export async function POST(req: NextRequest) {
               fileType: file.fileType,
             })
             .returning({ id: attachmentsTable.id });
-          console.log(`Inserted attachment ID for file ${index + 1}:`, result[0].id);
           return result[0].id;
-        } catch (err) {
-          console.error(`Error inserting file ${index + 1}:`, err);
+        } catch {
           return null;
         }
       })
@@ -62,7 +60,7 @@ export async function POST(req: NextRequest) {
         hostId,
         name,
         description,
-        location,
+        location, // Directly store WKT POINT format
         pricePerNight,
         amenities: amenities || [],
         rating: 0, // Default rating
@@ -93,6 +91,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to add homestay' }, { status: 500 });
   }
 }
+
 
 
 
@@ -162,12 +161,12 @@ export async function GET(req: NextRequest) {
 }
 
 
+
 export async function PUT(req: NextRequest) {
   try {
     const data = await req.formData(); // Parse multipart form data
-
-    const homestayData = JSON.parse(data.get('homestay') as string); // Extract and parse homestay data
-    const files = data.getAll('files[]') as File[]; // Extract all files as an array of File objects
+    const homestayData = JSON.parse(data.get('homestay') as string); // Parse homestay JSON data
+    const files = data.getAll('files[]') as File[]; // Extract all uploaded files
     const { 
       id, 
       hostId, 
@@ -175,23 +174,23 @@ export async function PUT(req: NextRequest) {
       description, 
       location, 
       pricePerNight, 
-      amenities, 
+      amenities = [], 
       availability, 
       deletedAttachmentIds = [] 
     } = homestayData;
 
     // Validate required fields
-    if (!id || !hostId || !name || !pricePerNight || !location || !availability) {
-      return NextResponse.json({ error: 'Required fields are missing' }, { status: 400 });
+    if (!id || !hostId || !name || !location || !pricePerNight || !availability) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Verify if the homestay exists
+    // Verify homestay exists
     const existingHomestay = await db.select().from(homestaysTable).where(eq(homestaysTable.id, id)).limit(1).execute();
     if (!existingHomestay || existingHomestay.length === 0) {
       return NextResponse.json({ error: 'Homestay not found' }, { status: 404 });
     }
 
-    // Verify if the host exists
+    // Verify host exists
     const host = await db.select().from(hostsTable).where(eq(hostsTable.id, hostId)).limit(1).execute();
     if (!host || host.length === 0) {
       return NextResponse.json({ error: 'Host not found' }, { status: 404 });
@@ -199,56 +198,51 @@ export async function PUT(req: NextRequest) {
 
     // Delete specified attachments
     if (deletedAttachmentIds.length > 0) {
-      // Remove from homestayAttachmentsTable
-      await db
-        .delete(homestayAttachmentsTable)
+      await db.delete(homestayAttachmentsTable)
         .where(inArray(homestayAttachmentsTable.attachmentId, deletedAttachmentIds))
         .execute();
 
-      // Remove from attachmentsTable
-      await db
-        .delete(attachmentsTable)
+      await db.delete(attachmentsTable)
         .where(inArray(attachmentsTable.id, deletedAttachmentIds))
         .execute();
     }
 
-    // Upload new images and store details in the attachments table
+    // Upload new files and insert into attachments table
     const uploadedFiles = files.length > 0 ? await uploadImages(files) : [];
-    const attachmentIds = await Promise.all(
+    const newAttachmentIds = await Promise.all(
       uploadedFiles.map(async (file) => {
-        const result = await db
+        const [result] = await db
           .insert(attachmentsTable)
           .values({
             fileName: file.fileName,
             fileType: file.fileType,
           })
           .returning({ id: attachmentsTable.id });
-        return result[0].id;
+        return result.id;
       })
     );
 
-    // Update the homestay data in the database
-    await db
-      .update(homestaysTable)
+    // Update homestay data
+    await db.update(homestaysTable)
       .set({
         hostId,
         name,
         description,
         location,
         pricePerNight,
-        amenities: amenities || [],
+        amenities: Array.isArray(amenities) ? amenities : [],
         availability,
       })
-      .where(eq(homestaysTable.id, id));
+      .where(eq(homestaysTable.id, id))
+      .execute();
 
     // Link new attachments to the homestay
-    if (attachmentIds.length > 0) {
-      await db.insert(homestayAttachmentsTable).values(
-        attachmentIds.map((attachmentId) => ({
-          homestayId: id,
-          attachmentId,
-        }))
-      );
+    if (newAttachmentIds.length > 0) {
+      const attachmentMappings = newAttachmentIds.map((attachmentId) => ({
+        homestayId: id,
+        attachmentId,
+      }));
+      await db.insert(homestayAttachmentsTable).values(attachmentMappings);
     }
 
     return NextResponse.json(
@@ -256,7 +250,7 @@ export async function PUT(req: NextRequest) {
         message: 'Homestay updated successfully',
         homestayId: id,
         deletedAttachmentIds,
-        newAttachmentIds: attachmentIds,
+        newAttachmentIds,
       },
       { status: 200 }
     );
@@ -265,6 +259,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to update homestay' }, { status: 500 });
   }
 }
+
 
 
 

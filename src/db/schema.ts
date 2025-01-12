@@ -36,7 +36,7 @@ export const homestaysTable = pgTable('homestays_table', {
     .references(() => hostsTable.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
-  location: jsonb('location').notNull(),
+  location: text('location').notNull(), // Store POINT type as WKT (Well-Known Text)
   pricePerNight: integer('price_per_night').notNull(),
   amenities: jsonb('amenities').notNull().default([]),
   rating: integer('rating').default(0),
@@ -44,6 +44,7 @@ export const homestaysTable = pgTable('homestays_table', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().$onUpdate(() => new Date()),
 });
+
 
 // Homestay Attachments Table (New Table)
 export const homestayAttachmentsTable = pgTable('homestay_attachments_table', {

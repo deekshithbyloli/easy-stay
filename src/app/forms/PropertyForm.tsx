@@ -34,7 +34,7 @@ const formSchema = z.object({
   location: z.object({
     lat: z.string().min(1, { message: 'Latitude is required' }),
     lng: z.string().min(1, { message: 'Longitude is required' }),
-    address: z.string().min(1, { message: 'Address is required' }),
+   
   }),
 
   pricePerNight: z.string().min(1, { message: 'Price must be greater than zero' }),
@@ -57,7 +57,7 @@ const [deletedAttachmentIds, setDeletedAttachmentIds] = useState<number[]>([]);
       name: '',
       description: '',
       photos: [],
-      location: { lat: '', lng: '', address: '' },
+      location: { lat: '', lng: ''},
       pricePerNight: '',
       amenities: [],
       availability: [],
@@ -75,6 +75,11 @@ const [deletedAttachmentIds, setDeletedAttachmentIds] = useState<number[]>([]);
             throw new Error(errorData.error || 'Failed to fetch homestay');
           }
           const data = await response.json();
+  
+          // Parse location field (POINT(lat lng)) to get lat and lng values
+          const locationMatch = data.homestay.location.match(/^POINT\(([^ ]+) ([^)]+)\)$/);
+          const lat = locationMatch ? locationMatch[1] : '';
+          const lng = locationMatch ? locationMatch[2] : '';
   
           // Use photoIds instead of photos to fetch attachments
           const attachmentPreviews = await Promise.all(
@@ -102,9 +107,8 @@ const [deletedAttachmentIds, setDeletedAttachmentIds] = useState<number[]>([]);
             description: data.homestay.description,
             photos: [], // Reset file input for new uploads
             location: {
-              lat: data.homestay.location.lat.toString(),
-              lng: data.homestay.location.lng.toString(),
-              address: data.homestay.location.address,
+              lat, // Use parsed lat
+              lng, // Use parsed lng
             },
             pricePerNight: data.homestay.pricePerNight.toString(),
             amenities: data.homestay.amenities || [],
@@ -146,14 +150,14 @@ const [deletedAttachmentIds, setDeletedAttachmentIds] = useState<number[]>([]);
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     setError(null);
-  
+    const formattedLocation = `POINT(${values.location.lng} ${values.location.lat})`;
     // Step 1: Create the HomestayDTO
     const homestayDTO = {
       id:homestayId,
       hostId: sessionStorage.getItem('hostId') || '',
       name: values.name,
       description: values.description || '',
-      location: values.location,
+      location: formattedLocation,
       pricePerNight: values.pricePerNight,
       amenities: values.amenities,
       availability: values.availability,
@@ -364,7 +368,7 @@ const [deletedAttachmentIds, setDeletedAttachmentIds] = useState<number[]>([]);
               />
 
               {/* Address */}
-              <FormField
+              {/* <FormField
                 control={form.control}
                 name="location.address"
                 render={({ field }) => (
@@ -381,7 +385,7 @@ const [deletedAttachmentIds, setDeletedAttachmentIds] = useState<number[]>([]);
                     <FormMessage className="text-xs font-normal text-red-500" />
                   </FormItem>
                 )}
-              />
+              /> */}
 
               {/* Price per Night */}
               <FormField
