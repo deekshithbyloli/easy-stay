@@ -6,12 +6,12 @@ import CreateHomestayForm from '@/app/forms/PropertyForm';
 import { FaMapMarkerAlt, FaDollarSign, FaEdit, FaTrash } from 'react-icons/fa';
 
 const HomestayDisplay = () => {
-  const [homestays, setHomestays] = useState<any[]>([]);
+  const [homestays, setHomestays] = useState<unknown[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingHomestay, setEditingHomestay] = useState<any | null>(null);
+  const [editingHomestay, setEditingHomestay] = useState<unknown | null>(null);
 
   useEffect(() => {
     const storedHostId = sessionStorage.getItem('hostId');
@@ -35,6 +35,7 @@ const HomestayDisplay = () => {
         }
       } catch (err) {
         setError('An error occurred while fetching homestays.');
+        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -55,11 +56,9 @@ const HomestayDisplay = () => {
     <div className="container mx-auto p-8 space-y-12">
       <header className="text-center space-y-4">
         <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-          Manage Your Homestays
+          Manage Your Homestays hii
         </h1>
-        <p className="text-lg text-gray-600">
-          Add, edit, and manage your properties seamlessly.
-        </p>
+        <p className="text-lg text-gray-600">Add, edit, and manage your properties seamlessly.</p>
       </header>
 
       <div className="flex justify-between items-center">
