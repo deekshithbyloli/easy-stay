@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ModeToggle } from './theme/switchTheme';
 
 function Navbar() {
   return (
@@ -29,6 +30,7 @@ function Navbar() {
 
         {/* Buttons */}
         <div className="flex items-center space-x-4">
+          <ModeToggle />
           <Link href="/login">
             <button className="text-gray-700 border border-gray-300 px-4 py-2 rounded-md hover:border-indigo-600 hover:text-indigo-600 transition">
               Login

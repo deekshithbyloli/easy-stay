@@ -1,0 +1,1 @@
+ALTER TABLE "homestays_table" ALTER COLUMN "location" SET DATA TYPE text;
