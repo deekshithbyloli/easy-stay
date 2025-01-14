@@ -1,9 +1,49 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ModeToggle } from './theme/switchTheme';
 
 function Navbar() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const router = useRouter();
+  const supabase = createClientComponentClient();
+
+  useEffect(() => {
+    // Check for the token in cookies (could be named sb-* for Supabase token)
+    const token = document.cookie.split('; ').find((row) => row.startsWith('sb-'));
+
+    if (token) {
+      // If token is found, user is logged in
+      setIsLoggedIn(true);
+    } else {
+      // If token is not found, user is not logged in
+      setIsLoggedIn(false);
+    }
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      // Sign out the user using Supabase
+      await supabase.auth.signOut();
+
+      // Clear cookies manually (adjust according to your cookie names)
+      document.cookie = 'sb-auth-token=; Max-Age=0; path=/'; // Adjust according to your cookie name
+      document.cookie = 'sb-refresh-token=; Max-Age=0; path=/';
+
+      // Optionally clear localStorage/sessionStorage if used for token management
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // Redirect to login page
+      router.push('/login');
+    } catch (err) {
+      console.error('Error during logout:', err);
+    }
+  };
+
   return (
     <header className="bg-white shadow-md sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -31,22 +71,46 @@ function Navbar() {
         {/* Buttons */}
         <div className="flex items-center space-x-4">
           <ModeToggle />
-          <Link href="/login">
-            <button className="text-gray-700 border border-gray-300 px-4 py-2 rounded-md hover:border-indigo-600 hover:text-indigo-600 transition">
-              Login
+
+          {/* Conditionally render buttons based on login status */}
+          {!isLoggedIn ? (
+            <>
+              <Link href="/login">
+                <button className="text-gray-700 border border-gray-300 px-4 py-2 rounded-md hover:border-indigo-600 hover:text-indigo-600 transition">
+                  Login
+                </button>
+              </Link>
+              <Link href="/register">
+                <button className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
+                  Sign Up
+                </button>
+              </Link>
+            </>
+          ) : (
+            <button
+              onClick={handleLogout}
+              className="text-gray-700 border border-gray-300 px-4 py-2 rounded-md hover:border-red-600 hover:text-red-600 transition"
+            >
+              Logout
             </button>
-          </Link>
-          <Link href="/register">
-            <button className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition">
-              Sign Up
-            </button>
-          </Link>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
         <button className="block md:hidden text-gray-700 focus:outline-none">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16m-7 6h7"
+            />
           </svg>
         </button>
       </div>

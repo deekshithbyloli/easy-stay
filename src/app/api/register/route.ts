@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '../../../db'; // Drizzle ORM instance
 import { usersTable, hostsTable } from '../../../db/schema';
 import { or, eq } from 'drizzle-orm';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcrypt'; // For password hashing
+import { createClient } from '@/app/utils/supabase/server';
 
 export async function POST(req: NextRequest) {
+  const supabase = await createClient();
   try {
     const { username, email, password, name, role } = await req.json();
 
+    // Validate request payload
     if (!username || !email || !password || !name) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
     }
@@ -31,7 +34,22 @@ export async function POST(req: NextRequest) {
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert the new user into the database
+    // Sign up the user with Supabase
+    const { user, error } = await supabase.auth.signUp({
+      email,
+      password // Supabase requires the plain password for its authentication
+    });
+    console.log(user);
+
+    if (error) {
+      console.error('Supabase sign-up error:', error.message);
+      return NextResponse.json(
+        { error: 'Failed to create user. Please try again.' },
+        { status: 500 }
+      );
+    }
+
+    // Save the user information in the database
     const [newUser] = await db
       .insert(usersTable)
       .values({
@@ -39,22 +57,33 @@ export async function POST(req: NextRequest) {
         email,
         password: hashedPassword,
         name,
-        role: userRole, // Use the provided role or default to 'user'
+        role: userRole
       })
       .returning();
 
+    console.log('User saved in the database:', newUser);
+
+    // If the user role is 'host', add them to the hosts table
     if (userRole === 'host') {
-      // Insert into hostsTable if the user is a host
-      await db
+      const [newHost] = await db
         .insert(hostsTable)
         .values({
-          userId: newUser.id, // Use the ID of the newly created user
-          propertyIds: [], // Default empty array for property IDs
+          userId: newUser.id,
+          propertyIds: [] // Initialize with an empty array
         })
-        .execute();
+        .returning();
+
+      console.log('Host added to hosts table:', newHost);
     }
 
-    return NextResponse.json({ message: 'User registered successfully' }, { status: 201 });
+    // Return success response
+    return NextResponse.json(
+      {
+        message: 'User registered successfully. Please check your email to confirm your account.',
+        user: newUser
+      },
+      { status: 201 }
+    );
   } catch (err) {
     console.error('Registration error:', err);
     return NextResponse.json({ error: 'Failed to register user' }, { status: 500 });

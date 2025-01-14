@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '../../../db'; // Drizzle ORM instance
 import { usersTable, hostsTable } from '../../../db/schema';
-import { or, eq } from 'drizzle-orm';
-import bcrypt from 'bcrypt';
+import { eq } from 'drizzle-orm';
+import { createClient } from '@/app/utils/supabase/server';
 
 export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+
   try {
     const { login, password } = await req.json();
 
@@ -12,25 +14,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Login and password are required' }, { status: 400 });
     }
 
-    // Fetch the user by username or email
+    // Use Supabase's signInWithPassword method for authentication
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: login, // Assuming login is an email, adapt if needed
+      password
+    });
+
+    if (authError || !authData.user) {
+      console.error('Supabase login error:', authError?.message);
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
+    // Fetch the user from the database
     const user = await db
       .select()
       .from(usersTable)
-      .where(or(eq(usersTable.username, login), eq(usersTable.email, login)))
+      .where(eq(usersTable.email, login)) // Adjust to match your schema
       .limit(1)
       .execute();
 
     if (!user || user.length === 0) {
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     const foundUser = user[0];
-
-    // Verify the password
-    const isValidPassword = await bcrypt.compare(password, foundUser.password);
-    if (!isValidPassword) {
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
-    }
 
     // Fetch host details associated with the user ID
     const hostDetails = await db
@@ -41,13 +48,13 @@ export async function POST(req: NextRequest) {
 
     const hostId = hostDetails.length > 0 ? hostDetails[0].id : null;
 
-    // Return successful response with authenticated user's details and host details
+    // Return successful response with user details and host information
     return NextResponse.json(
       {
         userId: foundUser.id,
         name: foundUser.name,
         role: foundUser.role,
-        hostId, // Send the hostId in the response
+        hostId // Include hostId if the user is a host
       },
       { status: 200 }
     );

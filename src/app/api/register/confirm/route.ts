@@ -1,78 +1,92 @@
-import { type EmailOtpType } from '@supabase/supabase-js';
-import { type NextRequest } from 'next/server';
-import { redirect } from 'next/navigation';
-import { db } from '@/db'; // Drizzle ORM instance
-import { usersTable } from '@/db/schema';
+import { NextRequest, NextResponse } from 'next/server';
+
+import { or, eq } from 'drizzle-orm';
+import bcrypt from 'bcrypt'; // For password hashing
 import { createClient } from '@/app/utils/supabase/server';
+import { db } from '@/db';
+import { hostsTable, usersTable } from '@/db/schema';
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
+export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+  try {
+    const { username, email, password, name, role } = await req.json();
 
-  // Extract parameters from the confirmation URL
-  const tokenHash = searchParams.get('token_hash');
-  const type = searchParams.get('type') as EmailOtpType | null;
-  const next = searchParams.get('next') ?? '/'; // Default redirect path
-
-  if (tokenHash && type) {
-    const supabase = await createClient();
-
-    try {
-      // Verify the OTP with Supabase
-      const { error } = await supabase.auth.verifyOtp({
-        type,
-        token_hash: tokenHash
-      });
-
-      if (error) {
-        console.error('OTP verification failed:', error.message);
-        redirect('/error'); // Redirect to an error page if verification fails
-        return;
-      }
-
-      console.log('Email verification successful.');
-
-      // Retrieve user details after successful OTP verification
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-
-      if (userError || !userData.user) {
-        console.error('Failed to fetch user after verification:', userError?.message);
-        redirect('/error'); // Redirect to an error page if user retrieval fails
-        return;
-      }
-
-      const { email } = userData.user;
-
-      // Update the user's database record (if necessary)
-      const userInDb = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.email, email))
-        .limit(1)
-        .execute();
-
-      if (userInDb.length === 0) {
-        console.error('User not found in database.');
-        redirect('/error'); // Redirect to an error page if the user is not found
-        return;
-      }
-
-      // Optionally, update user status in the database
-      await db
-        .update(usersTable)
-        .set({ is_verified: true }) // Example: Set an `is_verified` field
-        .where(eq(usersTable.email, email))
-        .execute();
-
-      console.log('User email verification status updated in database.');
-
-      // Redirect the user to the specified "next" URL or the app root
-      redirect(next);
-    } catch (err) {
-      console.error('Unexpected error during email verification:', err);
-      redirect('/error'); // Redirect to an error page if an unexpected error occurs
+    // Validate request payload
+    if (!username || !email || !password || !name) {
+      return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
     }
-  } else {
-    // Redirect to an error page if required parameters are missing
-    redirect('/error');
+
+    // Check if the username or email already exists in the database
+    const existingUser = await db
+      .select()
+      .from(usersTable)
+      .where(or(eq(usersTable.username, username), eq(usersTable.email, email)))
+      .limit(1)
+      .execute();
+
+    if (existingUser && existingUser.length > 0) {
+      return NextResponse.json({ error: 'Username or email already exists' }, { status: 409 });
+    }
+
+    // Validate role
+    const validRoles = ['user', 'admin', 'host'];
+    const userRole = validRoles.includes(role) ? role : 'user'; // Default to 'user' if invalid role
+
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Sign up the user with Supabase
+    const { user, error } = await supabase.auth.signUp({
+      email,
+      password // Supabase requires the plain password for its authentication
+    });
+    console.log(user);
+
+    if (error) {
+      console.error('Supabase sign-up error:', error.message);
+      return NextResponse.json(
+        { error: 'Failed to create user. Please try again.' },
+        { status: 500 }
+      );
+    }
+
+    // Save the user information in the database
+    const [newUser] = await db
+      .insert(usersTable)
+      .values({
+        username,
+        email,
+        password: hashedPassword,
+        name,
+        role: userRole
+      })
+      .returning();
+
+    console.log('User saved in the database:', newUser);
+
+    // If the user role is 'host', add them to the hosts table
+    if (userRole === 'host') {
+      const [newHost] = await db
+        .insert(hostsTable)
+        .values({
+          userId: newUser.id,
+          propertyIds: [] // Initialize with an empty array
+        })
+        .returning();
+
+      console.log('Host added to hosts table:', newHost);
+    }
+
+    // Return success response
+    return NextResponse.json(
+      {
+        message: 'User registered successfully. Please check your email to confirm your account.',
+        user: newUser
+      },
+      { status: 201 }
+    );
+  } catch (err) {
+    console.error('Registration error:', err);
+    return NextResponse.json({ error: 'Failed to register user' }, { status: 500 });
   }
 }
